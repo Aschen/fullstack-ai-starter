@@ -31,14 +31,14 @@ export default function Chat({
             key={m.id}
             className={`p-4 rounded-lg ${
               m.role === "user"
-                ? "bg-blue-100 ml-auto max-w-[80%]"
-                : "bg-gray-100 mr-auto max-w-[80%]"
+                ? "bg-blue-100 ml-auto max-w-[80%] text-gray-900"
+                : "bg-gray-100 mr-auto max-w-[80%] text-gray-900"
             }`}
           >
-            <div className="font-semibold mb-1">
+            <div className="font-semibold mb-1 text-gray-900">
               {m.role === "user" ? "You" : "AI Assistant"}
             </div>
-            <div className="whitespace-pre-wrap">{m.content}</div>
+            <div className="whitespace-pre-wrap text-gray-900">{m.content}</div>
           </div>
         ))}
         <div ref={messagesEndRef} />
