@@ -61,9 +61,21 @@ export async function loadChat(id: string): Promise<Message[]> {
   return messages.map((msg) => ({
     id: msg.id,
     role: msg.role as "user" | "assistant" | "system",
-    content: msg.content,
+    content: parseMessageContent(msg.content),
     createdAt: new Date(msg.created_at),
-  }));
+  })) as any;
+}
+
+// Helper function to parse message content
+function parseMessageContent(content: string): string | any[] {
+  try {
+    // Try to parse as JSON (for assistant messages with structured content)
+    const parsed = JSON.parse(content);
+    return parsed;
+  } catch (e) {
+    // If parsing fails, return the original string content
+    return content;
+  }
 }
 
 // Function to save a chat with its messages
@@ -87,11 +99,16 @@ export async function saveChat({
 
     // Insert all messages
     for (const message of messages) {
+      // Handle both string content and object array content
+      const content = typeof message.content === 'string'
+        ? message.content
+        : JSON.stringify(message.content);
+
       insertMessageStmt.run(
         message.id,
         id,
         message.role,
-        message.content,
+        content,
         message.createdAt ? new Date(message.createdAt).getTime() : Date.now()
       );
     }
