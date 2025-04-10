@@ -16,7 +16,8 @@ const initDb = async () => {
     await client.query(`
       CREATE TABLE IF NOT EXISTS chats (
         id TEXT PRIMARY KEY,
-        created_at TIMESTAMP NOT NULL
+        created_at TIMESTAMP NOT NULL,
+        embedding VECTOR(1536)
       );
 
       CREATE TABLE IF NOT EXISTS messages (

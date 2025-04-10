@@ -6,6 +6,7 @@ import { pool, dbInit } from "./schema";
 interface ChatRow {
   id: string;
   created_at: Date;
+  embedding?: number[];
 }
 
 interface MessageRow {
@@ -17,15 +18,15 @@ interface MessageRow {
 }
 
 // Function to create a new chat
-export async function createChat(): Promise<string> {
+export async function createChat(embedding?: number[]): Promise<string> {
   await dbInit;
   const id = generateId();
   const now = new Date();
 
-  await pool.query("INSERT INTO chats (id, created_at) VALUES ($1, $2)", [
-    id,
-    now,
-  ]);
+  await pool.query(
+    "INSERT INTO chats (id, created_at, embedding) VALUES ($1, $2, $3)",
+    [id, now, embedding ? embedding : null]
+  );
 
   return id;
 }
@@ -58,9 +59,11 @@ export async function loadChat(id: string): Promise<Message[]> {
 export async function saveChat({
   id,
   messages,
+  embedding,
 }: {
   id: string;
   messages: Message[];
+  embedding?: number[];
 }): Promise<void> {
   await dbInit;
   const client = await pool.connect();
@@ -73,9 +76,15 @@ export async function saveChat({
     ]);
 
     if (chatResult.rows.length === 0) {
-      await client.query("INSERT INTO chats (id, created_at) VALUES ($1, $2)", [
+      await client.query(
+        "INSERT INTO chats (id, created_at, embedding) VALUES ($1, $2, $3)",
+        [id, new Date(), embedding ? embedding : null]
+      );
+    } else if (embedding) {
+      // Update embedding if provided
+      await client.query("UPDATE chats SET embedding = $1 WHERE id = $2", [
+        embedding,
         id,
-        new Date(),
       ]);
     }
 
@@ -112,7 +121,9 @@ export async function deleteChat(id: string): Promise<void> {
 }
 
 // Function to list all chats
-export async function listChats(): Promise<{ id: string; createdAt: Date }[]> {
+export async function listChats(): Promise<
+  { id: string; createdAt: Date; embedding?: number[] }[]
+> {
   await dbInit;
   const result = await pool.query(
     "SELECT * FROM chats ORDER BY created_at DESC"
@@ -121,5 +132,6 @@ export async function listChats(): Promise<{ id: string; createdAt: Date }[]> {
   return result.rows.map((chat: ChatRow) => ({
     id: chat.id,
     createdAt: chat.created_at,
+    embedding: chat.embedding,
   }));
 }
