@@ -1,11 +1,11 @@
 import { Message } from "ai";
 import { generateId } from "ai";
-import { db } from "./schema";
+import { pool, dbInit } from "./schema";
 
 // Define types for database rows
 interface ChatRow {
   id: string;
-  created_at: number;
+  created_at: Date;
 }
 
 interface MessageRow {
@@ -13,56 +13,44 @@ interface MessageRow {
   chat_id: string;
   role: string;
   content: string;
-  created_at: number;
+  created_at: Date;
 }
-
-// Prepare statements for better performance
-const insertChatStmt = db.prepare(`
-  INSERT INTO chats (id, created_at) VALUES (?, ?)
-`);
-
-const insertMessageStmt = db.prepare(`
-  INSERT INTO messages (id, chat_id, role, content, created_at)
-  VALUES (?, ?, ?, ?, ?)
-`);
-
-const getChatStmt = db.prepare(`
-  SELECT * FROM chats WHERE id = ?
-`);
-
-const getMessagesStmt = db.prepare(`
-  SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC
-`);
-
-const deleteChatStmt = db.prepare(`
-  DELETE FROM chats WHERE id = ?
-`);
 
 // Function to create a new chat
 export async function createChat(): Promise<string> {
+  await dbInit;
   const id = generateId();
-  const now = Date.now();
+  const now = new Date();
 
-  insertChatStmt.run(id, now);
+  await pool.query("INSERT INTO chats (id, created_at) VALUES ($1, $2)", [
+    id,
+    now,
+  ]);
 
   return id;
 }
 
 // Function to load a chat and its messages
 export async function loadChat(id: string): Promise<Message[]> {
-  const chat = getChatStmt.get(id) as ChatRow | undefined;
+  await dbInit;
+  const chatResult = await pool.query("SELECT * FROM chats WHERE id = $1", [
+    id,
+  ]);
 
-  if (!chat) {
+  if (chatResult.rows.length === 0) {
     throw new Error(`Chat with ID ${id} not found`);
   }
 
-  const messages = getMessagesStmt.all(id) as MessageRow[];
+  const messagesResult = await pool.query(
+    "SELECT * FROM messages WHERE chat_id = $1 ORDER BY created_at ASC",
+    [id]
+  );
 
-  return messages.map((msg) => ({
+  return messagesResult.rows.map((msg: MessageRow) => ({
     id: msg.id,
     role: msg.role as "user" | "assistant" | "system",
     content: msg.content,
-    createdAt: new Date(msg.created_at),
+    createdAt: msg.created_at,
   }));
 }
 
@@ -74,46 +62,64 @@ export async function saveChat({
   id: string;
   messages: Message[];
 }): Promise<void> {
-  // Start a transaction
-  const transaction = db.transaction(() => {
+  await dbInit;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
     // Check if chat exists, if not create it
-    const chat = getChatStmt.get(id) as ChatRow | undefined;
-    if (!chat) {
-      insertChatStmt.run(id, Date.now());
+    const chatResult = await client.query("SELECT * FROM chats WHERE id = $1", [
+      id,
+    ]);
+
+    if (chatResult.rows.length === 0) {
+      await client.query("INSERT INTO chats (id, created_at) VALUES ($1, $2)", [
+        id,
+        new Date(),
+      ]);
     }
 
     // Delete existing messages for this chat
-    db.prepare(`DELETE FROM messages WHERE chat_id = ?`).run(id);
+    await client.query("DELETE FROM messages WHERE chat_id = $1", [id]);
 
     // Insert all messages
     for (const message of messages) {
-      insertMessageStmt.run(
-        message.id,
-        id,
-        message.role,
-        message.content,
-        message.createdAt ? new Date(message.createdAt).getTime() : Date.now()
+      await client.query(
+        "INSERT INTO messages (id, chat_id, role, content, created_at) VALUES ($1, $2, $3, $4, $5)",
+        [
+          message.id,
+          id,
+          message.role,
+          message.content,
+          message.createdAt ? new Date(message.createdAt) : new Date(),
+        ]
       );
     }
-  });
 
-  // Execute the transaction
-  transaction();
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // Function to delete a chat
 export async function deleteChat(id: string): Promise<void> {
-  deleteChatStmt.run(id);
+  await dbInit;
+  await pool.query("DELETE FROM chats WHERE id = $1", [id]);
 }
 
 // Function to list all chats
 export async function listChats(): Promise<{ id: string; createdAt: Date }[]> {
-  const chats = db
-    .prepare(`SELECT * FROM chats ORDER BY created_at DESC`)
-    .all() as ChatRow[];
+  await dbInit;
+  const result = await pool.query(
+    "SELECT * FROM chats ORDER BY created_at DESC"
+  );
 
-  return chats.map((chat) => ({
+  return result.rows.map((chat: ChatRow) => ({
     id: chat.id,
-    createdAt: new Date(chat.created_at),
+    createdAt: chat.created_at,
   }));
 }

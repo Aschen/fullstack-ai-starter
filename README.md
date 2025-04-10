@@ -6,14 +6,15 @@ A modern, full-stack AI chat application built with Next.js, featuring real-time
 
 - 🤖 AI-powered chat interface with support for multiple AI providers
 - 💬 Real-time chat functionality
-- 📝 Persistent chat history using SQLite
+- 📝 Persistent chat history using PostgreSQL
 - 🎯 Structured output processing for enhanced AI responses
+- 🐳 Docker support for easy development and deployment
 
 ## Prerequisites
 
 - Node.js 20.0 or later
 - npm or yarn package manager
-- SQLite (for local development)
+- Docker and Docker Compose (for running PostgreSQL)
 
 ## Getting Started
 
@@ -35,15 +36,26 @@ A modern, full-stack AI chat application built with Next.js, featuring real-time
 
    ```
    OPENAI_API_KEY=your_openai_api_key
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=postgres
+   POSTGRES_DB=aichat
+   POSTGRES_HOST=localhost
+   POSTGRES_PORT=5432
    ```
 
-4. Start the development server:
+4. Start the PostgreSQL database:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+5. Start the development server:
 
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+6. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
 ## Project Structure
 
@@ -60,3 +72,27 @@ src/
 ## Available Scripts
 
 - `npm run dev` - Start the development server with Turbopack
+- `npm run build` - Build the application for production
+- `npm start` - Start the production server
+- `npm run lint` - Run ESLint to check code quality
+
+## Database
+
+The application uses PostgreSQL as its database. The database configuration is managed through Docker Compose, making it easy to set up and maintain. The database schema includes:
+
+- `chats` table: Stores chat sessions
+- `messages` table: Stores individual messages within chats
+
+## Docker
+
+The application includes a Docker Compose configuration for running PostgreSQL. To start the database:
+
+```bash
+docker-compose up -d
+```
+
+To stop the database:
+
+```bash
+docker-compose down
+```
