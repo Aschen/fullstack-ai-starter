@@ -135,3 +135,25 @@ export async function listChats(): Promise<
     embedding: chat.embedding,
   }));
 }
+
+// Function to search for similar chats based on embedding
+export async function searchSimilarChats(
+  embedding: number[],
+  limit: number = 5
+): Promise<{ id: string; createdAt: Date; similarity: number }[]> {
+  await dbInit;
+  const result = await pool.query(
+    `SELECT id, created_at, embedding <-> $1 as similarity
+     FROM chats
+     WHERE embedding IS NOT NULL
+     ORDER BY similarity ASC
+     LIMIT $2`,
+    [embedding, limit]
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    similarity: row.similarity,
+  }));
+}
